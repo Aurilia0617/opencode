@@ -3,6 +3,7 @@ import type {
   Agent,
   Provider,
   Session,
+  File as GitFile,
   Part,
   Config,
   Todo,
@@ -54,6 +55,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       session_diff: {
         [sessionID: string]: Snapshot.FileDiff[]
       }
+      file_status: GitFile[]
       todo: {
         [sessionID: string]: Todo[]
       }
@@ -91,6 +93,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       session: [],
       session_status: {},
       session_diff: {},
+      file_status: [],
       todo: {},
       message: {},
       part: {},
@@ -103,6 +106,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
     })
 
     const sdk = useSDK()
+    const refresh = () => sdk.client.file.status().then((x) => setStore("file_status", reconcile(x.data ?? [])))
 
     sdk.event.listen((e) => {
       const event = e.details
@@ -331,6 +335,16 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           break
         }
 
+        case "file.edited": {
+          refresh()
+          break
+        }
+
+        case "file.watcher.updated": {
+          refresh()
+          break
+        }
+
         case "lsp.updated": {
           sdk.client.lsp.status().then((x) => setStore("lsp", x.data!))
           break
@@ -338,6 +352,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
 
         case "vcs.branch.updated": {
           setStore("vcs", { branch: event.properties.branch })
+          refresh()
           break
         }
       }
@@ -410,6 +425,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             sdk.client.session.status().then((x) => {
               setStore("session_status", reconcile(x.data!))
             }),
+            refresh(),
             sdk.client.provider.auth().then((x) => setStore("provider_auth", reconcile(x.data ?? {}))),
             sdk.client.vcs.get().then((x) => setStore("vcs", reconcile(x.data))),
             sdk.client.path.get().then((x) => setStore("path", reconcile(x.data!))),

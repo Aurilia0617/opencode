@@ -37,11 +37,13 @@ export namespace Locale {
     return num.toString()
   }
 
-  export function duration(input: number) {
+  export function duration(input: number, precise = true) {
     if (input < 1000) {
+      if (!precise) return "0s"
       return `${input}ms`
     }
     if (input < 60000) {
+      if (!precise) return `${Math.floor(input / 1000)}s`
       return `${(input / 1000).toFixed(1)}s`
     }
     if (input < 3600000) {

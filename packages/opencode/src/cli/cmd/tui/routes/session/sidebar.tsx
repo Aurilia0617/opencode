@@ -16,7 +16,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const sync = useSync()
   const { theme } = useTheme()
   const session = createMemo(() => sync.session.get(props.sessionID)!)
-  const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
+  const diff = createMemo(() => sync.data.file_status)
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
 
@@ -240,7 +240,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                     <text fg={theme.text}>{expanded.diff ? "▼" : "▶"}</text>
                   </Show>
                   <text fg={theme.text}>
-                    <b>Modified Files</b>
+                    <b>Uncommitted Files</b>
                   </text>
                 </box>
                 <Show when={diff().length <= 2 || expanded.diff}>
@@ -249,14 +249,19 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                       return (
                         <box flexDirection="row" gap={1} justifyContent="space-between">
                           <text fg={theme.textMuted} wrapMode="none">
-                            {item.file}
+                            {item.path}
                           </text>
                           <box flexDirection="row" gap={1} flexShrink={0}>
-                            <Show when={item.additions}>
-                              <text fg={theme.diffAdded}>+{item.additions}</text>
+                            <Show when={item.added}>
+                              <text fg={theme.diffAdded}>+{item.added}</text>
                             </Show>
-                            <Show when={item.deletions}>
-                              <text fg={theme.diffRemoved}>-{item.deletions}</text>
+                            <Show when={item.removed}>
+                              <text fg={theme.diffRemoved}>-{item.removed}</text>
+                            </Show>
+                            <Show when={!item.added && !item.removed}>
+                              <text fg={item.status === "deleted" ? theme.diffRemoved : theme.textMuted}>
+                                {item.status}
+                              </text>
                             </Show>
                           </box>
                         </box>

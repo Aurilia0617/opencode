@@ -1314,17 +1314,25 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   const { theme } = useTheme()
   const sync = useSync()
   const messages = createMemo(() => sync.data.message[props.message.sessionID] ?? [])
+  const [now, setNow] = createSignal(Date.now())
 
   const final = createMemo(() => {
     return props.message.finish && !["tool-calls", "unknown"].includes(props.message.finish)
   })
 
+  const running = createMemo(() => props.last && !props.message.time.completed)
+
+  createEffect(() => {
+    if (!running()) return
+    setNow(Date.now())
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    onCleanup(() => clearInterval(id))
+  })
+
   const duration = createMemo(() => {
-    if (!final()) return 0
-    if (!props.message.time.completed) return 0
     const user = messages().find((x) => x.role === "user" && x.id === props.message.parentID)
     if (!user || !user.time) return 0
-    return props.message.time.completed - user.time.created
+    return (props.message.time.completed ?? now()) - user.time.created
   })
 
   const keybind = useKeybind()
@@ -1385,7 +1393,9 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
               <span style={{ fg: theme.text }}>{Locale.titlecase(props.message.mode)}</span>
               <span style={{ fg: theme.textMuted }}> · {props.message.modelID}</span>
               <Show when={duration()}>
-                <span style={{ fg: theme.textMuted }}> · {Locale.duration(duration())}</span>
+                <span style={{ fg: theme.textMuted }}>
+                  {running() ? ` · running ${Locale.duration(duration(), false)}` : ` · ${Locale.duration(duration())}`}
+                </span>
               </Show>
               <Show when={props.message.error?.name === "MessageAbortedError"}>
                 <span style={{ fg: theme.textMuted }}> · interrupted</span>
