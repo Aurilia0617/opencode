@@ -212,7 +212,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
               const raw = props.request.metadata?.filepath
               const filepath = typeof raw === "string" ? raw : ""
               return {
-                icon: "→",
+                icon: "✎",
                 title: `Edit ${normalizePath(filepath)}`,
                 body: <EditBody request={props.request} />,
               }
@@ -222,7 +222,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
               const raw = data.filePath
               const filePath = typeof raw === "string" ? raw : ""
               return {
-                icon: "→",
+                icon: "▤",
                 title: `Read ${normalizePath(filePath)}`,
                 body: (
                   <Show when={filePath}>
@@ -237,7 +237,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
             if (permission === "glob") {
               const pattern = typeof data.pattern === "string" ? data.pattern : ""
               return {
-                icon: "✱",
+                icon: "⌕",
                 title: `Glob "${pattern}"`,
                 body: (
                   <Show when={pattern}>
@@ -252,7 +252,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
             if (permission === "grep") {
               const pattern = typeof data.pattern === "string" ? data.pattern : ""
               return {
-                icon: "✱",
+                icon: "⌕",
                 title: `Grep "${pattern}"`,
                 body: (
                   <Show when={pattern}>
@@ -268,7 +268,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
               const raw = data.path
               const dir = typeof raw === "string" ? raw : ""
               return {
-                icon: "→",
+                icon: "≣",
                 title: `List ${normalizePath(dir)}`,
                 body: (
                   <Show when={dir}>
@@ -285,7 +285,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
                 typeof data.description === "string" && data.description ? data.description : "Shell command"
               const command = typeof data.command === "string" ? data.command : ""
               return {
-                icon: "#",
+                icon: ">",
                 title,
                 body: (
                   <Show when={command}>
@@ -301,7 +301,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
               const type = typeof data.subagent_type === "string" ? data.subagent_type : "Unknown"
               const desc = typeof data.description === "string" ? data.description : ""
               return {
-                icon: "#",
+                icon: "⋮",
                 title: `${Locale.titlecase(type)} Task`,
                 body: (
                   <Show when={desc}>
@@ -316,7 +316,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
             if (permission === "webfetch") {
               const url = typeof data.url === "string" ? data.url : ""
               return {
-                icon: "%",
+                icon: "◉",
                 title: `WebFetch ${url}`,
                 body: (
                   <Show when={url}>
@@ -331,7 +331,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
             if (permission === "websearch") {
               const query = typeof data.query === "string" ? data.query : ""
               return {
-                icon: "◈",
+                icon: "◉",
                 title: `Exa Web Search "${query}"`,
                 body: (
                   <Show when={query}>

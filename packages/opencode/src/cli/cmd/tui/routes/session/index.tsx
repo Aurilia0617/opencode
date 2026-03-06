@@ -6,6 +6,7 @@ import {
   createSignal,
   For,
   Match,
+  onCleanup,
   on,
   onMount,
   Show,
@@ -1633,6 +1634,11 @@ function InlineTool(props: {
   const sync = useSync()
   const renderer = useRenderer()
   const [hover, setHover] = createSignal(false)
+  const [now, setNow] = createSignal(Date.now())
+  const status = createMemo(() => props.part.state.status)
+  const running = createMemo(() => props.spinner || status() === "running")
+  const done = createMemo(() => status() === "completed")
+  const shown = createMemo(() => status() !== "pending")
 
   const permission = createMemo(() => {
     const callID = sync.data.permission[ctx.sessionID]?.at(0)?.tool?.callID
@@ -1640,10 +1646,26 @@ function InlineTool(props: {
     return callID === props.part.callID
   })
 
+  createEffect(() => {
+    if (!running()) return
+    setNow(Date.now())
+    const id = setInterval(() => setNow(Date.now()), 200)
+    onCleanup(() => clearInterval(id))
+  })
+
+  const ms = createMemo(() => {
+    const state = props.part.state
+    if (state.status === "pending") return 0
+    if (state.status === "running") return now() - state.time.start
+    return state.time.end - state.time.start
+  })
+
+  const slow = createMemo(() => running() && ms() >= 3000)
+
   const fg = createMemo(() => {
     if (permission()) return theme.warning
     if (hover() && props.onClick) return theme.text
-    if (props.complete) return theme.textMuted
+    if (done()) return theme.textMuted
     return theme.text
   })
 
@@ -1654,6 +1676,26 @@ function InlineTool(props: {
       error()?.includes("rejected permission") ||
       error()?.includes("specified a rule") ||
       error()?.includes("user dismissed"),
+  )
+
+  const line = () => (
+    <>
+      <span style={{ fg: props.iconColor }}>{props.icon}</span> {props.children}
+      <Show when={shown()}>
+        <Show when={running()}>
+          <span style={{ fg: theme.textMuted }}> · running {Locale.duration(ms())}</span>
+          <Show when={slow()}>
+            <span style={{ fg: theme.warning }}> · slow...</span>
+          </Show>
+        </Show>
+        <Show when={!running() && ms() > 0}>
+          <span style={{ fg: theme.textMuted }}> · {Locale.duration(ms())}</span>
+        </Show>
+        <Show when={done()}>
+          <span style={{ fg: theme.success }}> ✓</span>
+        </Show>
+      </Show>
+    </>
   )
 
   return (
@@ -1690,13 +1732,13 @@ function InlineTool(props: {
       }}
     >
       <Switch>
-        <Match when={props.spinner}>
-          <Spinner color={fg()} children={props.children} />
+        <Match when={running()}>
+          <Spinner color={fg()}>{line()}</Spinner>
         </Match>
         <Match when={true}>
           <text paddingLeft={3} fg={fg()} attributes={denied() ? TextAttributes.STRIKETHROUGH : undefined}>
-            <Show fallback={<>~ {props.pending}</>} when={props.complete}>
-              <span style={{ fg: props.iconColor }}>{props.icon}</span> {props.children}
+            <Show fallback={<>~ {props.pending}</>} when={shown()}>
+              {line()}
             </Show>
           </text>
         </Match>
@@ -1814,7 +1856,7 @@ function Bash(props: ToolProps<typeof BashTool>) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="$" pending="Writing command..." complete={props.input.command} part={props.part}>
+        <InlineTool icon=">" pending="Writing command..." complete={props.input.command} part={props.part}>
           {props.input.command}
         </InlineTool>
       </Match>
@@ -1832,7 +1874,7 @@ function Write(props: ToolProps<typeof WriteTool>) {
   return (
     <Switch>
       <Match when={props.metadata.diagnostics !== undefined}>
-        <BlockTool title={"# Wrote " + normalizePath(props.input.filePath!)} part={props.part}>
+        <BlockTool title={"✎ Wrote " + normalizePath(props.input.filePath!)} part={props.part}>
           <line_number fg={theme.textMuted} minWidth={3} paddingRight={1}>
             <code
               conceal={false}
@@ -1846,7 +1888,7 @@ function Write(props: ToolProps<typeof WriteTool>) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="←" pending="Preparing write..." complete={props.input.filePath} part={props.part}>
+        <InlineTool icon="✎" pending="Preparing write..." complete={props.input.filePath} part={props.part}>
           Write {normalizePath(props.input.filePath!)}
         </InlineTool>
       </Match>
@@ -1856,7 +1898,7 @@ function Write(props: ToolProps<typeof WriteTool>) {
 
 function Glob(props: ToolProps<typeof GlobTool>) {
   return (
-    <InlineTool icon="✱" pending="Finding files..." complete={props.input.pattern} part={props.part}>
+    <InlineTool icon="⌕" pending="Finding files..." complete={props.input.pattern} part={props.part}>
       Glob "{props.input.pattern}" <Show when={props.input.path}>in {normalizePath(props.input.path)} </Show>
       <Show when={props.metadata.count}>
         ({props.metadata.count} {props.metadata.count === 1 ? "match" : "matches"})
@@ -1878,7 +1920,7 @@ function Read(props: ToolProps<typeof ReadTool>) {
   return (
     <>
       <InlineTool
-        icon="→"
+        icon="▤"
         pending="Reading file..."
         complete={props.input.filePath}
         spinner={isRunning()}
@@ -1890,7 +1932,7 @@ function Read(props: ToolProps<typeof ReadTool>) {
         {(filepath) => (
           <box paddingLeft={3}>
             <text paddingLeft={3} fg={theme.textMuted}>
-              ↳ Loaded {normalizePath(filepath)}
+              ▤ Loaded {normalizePath(filepath)}
             </text>
           </box>
         )}
@@ -1901,7 +1943,7 @@ function Read(props: ToolProps<typeof ReadTool>) {
 
 function Grep(props: ToolProps<typeof GrepTool>) {
   return (
-    <InlineTool icon="✱" pending="Searching content..." complete={props.input.pattern} part={props.part}>
+    <InlineTool icon="⌕" pending="Searching content..." complete={props.input.pattern} part={props.part}>
       Grep "{props.input.pattern}" <Show when={props.input.path}>in {normalizePath(props.input.path)} </Show>
       <Show when={props.metadata.matches}>
         ({props.metadata.matches} {props.metadata.matches === 1 ? "match" : "matches"})
@@ -1918,7 +1960,7 @@ function List(props: ToolProps<typeof ListTool>) {
     return ""
   })
   return (
-    <InlineTool icon="→" pending="Listing directory..." complete={props.input.path !== undefined} part={props.part}>
+    <InlineTool icon="≣" pending="Listing directory..." complete={props.input.path !== undefined} part={props.part}>
       List {dir()}
     </InlineTool>
   )
@@ -1926,7 +1968,7 @@ function List(props: ToolProps<typeof ListTool>) {
 
 function WebFetch(props: ToolProps<typeof WebFetchTool>) {
   return (
-    <InlineTool icon="%" pending="Fetching from the web..." complete={(props.input as any).url} part={props.part}>
+    <InlineTool icon="◉" pending="Fetching from the web..." complete={(props.input as any).url} part={props.part}>
       WebFetch {(props.input as any).url}
     </InlineTool>
   )
@@ -1946,7 +1988,7 @@ function WebSearch(props: ToolProps<any>) {
   const input = props.input as any
   const metadata = props.metadata as any
   return (
-    <InlineTool icon="◈" pending="Searching web..." complete={input.query} part={props.part}>
+    <InlineTool icon="◉" pending="Searching web..." complete={input.query} part={props.part}>
       Exa Web Search "{input.query}" <Show when={metadata.numResults}>({metadata.numResults} results)</Show>
     </InlineTool>
   )
@@ -2004,7 +2046,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
 
   return (
     <InlineTool
-      icon="│"
+      icon="⋮"
       spinner={isRunning()}
       complete={props.input.description}
       pending="Delegating..."
@@ -2038,7 +2080,7 @@ function Edit(props: ToolProps<typeof EditTool>) {
   return (
     <Switch>
       <Match when={props.metadata.diff !== undefined}>
-        <BlockTool title={"← Edit " + normalizePath(props.input.filePath!)} part={props.part}>
+        <BlockTool title={"✎ Edit " + normalizePath(props.input.filePath!)} part={props.part}>
           <box paddingLeft={1}>
             <diff
               diff={diffContent()}
@@ -2064,7 +2106,7 @@ function Edit(props: ToolProps<typeof EditTool>) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="←" pending="Preparing edit..." complete={props.input.filePath} part={props.part}>
+        <InlineTool icon="✎" pending="Preparing edit..." complete={props.input.filePath} part={props.part}>
           Edit {normalizePath(props.input.filePath!)} {input({ replaceAll: props.input.replaceAll })}
         </InlineTool>
       </Match>
@@ -2180,7 +2222,7 @@ function Question(props: ToolProps<typeof QuestionTool>) {
   return (
     <Switch>
       <Match when={props.metadata.answers}>
-        <BlockTool title="# Questions" part={props.part}>
+        <BlockTool title="⁇ Questions" part={props.part}>
           <box gap={1}>
             <For each={props.input.questions ?? []}>
               {(q, i) => (
@@ -2194,7 +2236,7 @@ function Question(props: ToolProps<typeof QuestionTool>) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="→" pending="Asking questions..." complete={count()} part={props.part}>
+        <InlineTool icon="⁇" pending="Asking questions..." complete={count()} part={props.part}>
           Asked {count()} question{count() !== 1 ? "s" : ""}
         </InlineTool>
       </Match>
@@ -2204,7 +2246,7 @@ function Question(props: ToolProps<typeof QuestionTool>) {
 
 function Skill(props: ToolProps<typeof SkillTool>) {
   return (
-    <InlineTool icon="→" pending="Loading skill..." complete={props.input.name} part={props.part}>
+    <InlineTool icon="✦" pending="Loading skill..." complete={props.input.name} part={props.part}>
       Skill "{props.input.name}"
     </InlineTool>
   )

@@ -25,6 +25,7 @@ import { WebSearchTool } from "../../tool/websearch"
 import { TaskTool } from "../../tool/task"
 import { SkillTool } from "../../tool/skill"
 import { BashTool } from "../../tool/bash"
+import { QuestionTool } from "../../tool/question"
 import { TodoWriteTool } from "../../tool/todo"
 import { Locale } from "../../util/locale"
 
@@ -82,7 +83,7 @@ function glob(info: ToolProps<typeof GlobTool>) {
   const description =
     num === undefined ? suffix : `${suffix}${suffix ? " · " : ""}${num} ${num === 1 ? "match" : "matches"}`
   inline({
-    icon: "✱",
+    icon: "⌕",
     title,
     ...(description && { description }),
   })
@@ -96,7 +97,7 @@ function grep(info: ToolProps<typeof GrepTool>) {
   const description =
     num === undefined ? suffix : `${suffix}${suffix ? " · " : ""}${num} ${num === 1 ? "match" : "matches"}`
   inline({
-    icon: "✱",
+    icon: "⌕",
     title,
     ...(description && { description }),
   })
@@ -105,7 +106,7 @@ function grep(info: ToolProps<typeof GrepTool>) {
 function list(info: ToolProps<typeof ListTool>) {
   const dir = info.input.path ? normalizePath(info.input.path) : ""
   inline({
-    icon: "→",
+    icon: "≣",
     title: dir ? `List ${dir}` : "List",
   })
 }
@@ -118,7 +119,7 @@ function read(info: ToolProps<typeof ReadTool>) {
   })
   const description = pairs.length ? `[${pairs.map(([key, value]) => `${key}=${value}`).join(", ")}]` : undefined
   inline({
-    icon: "→",
+    icon: "▤",
     title: `Read ${file}`,
     ...(description && { description }),
   })
@@ -127,7 +128,7 @@ function read(info: ToolProps<typeof ReadTool>) {
 function write(info: ToolProps<typeof WriteTool>) {
   block(
     {
-      icon: "←",
+      icon: "✎",
       title: `Write ${normalizePath(info.input.filePath)}`,
     },
     info.part.state.status === "completed" ? info.part.state.output : undefined,
@@ -136,7 +137,7 @@ function write(info: ToolProps<typeof WriteTool>) {
 
 function webfetch(info: ToolProps<typeof WebFetchTool>) {
   inline({
-    icon: "%",
+    icon: "◉",
     title: `WebFetch ${info.input.url}`,
   })
 }
@@ -146,7 +147,7 @@ function edit(info: ToolProps<typeof EditTool>) {
   const diff = info.metadata.diff
   block(
     {
-      icon: "←",
+      icon: "✎",
       title: `Edit ${title}`,
     },
     diff,
@@ -162,23 +163,21 @@ function codesearch(info: ToolProps<typeof CodeSearchTool>) {
 
 function websearch(info: ToolProps<typeof WebSearchTool>) {
   inline({
-    icon: "◈",
+    icon: "◉",
     title: `Exa Web Search "${info.input.query}"`,
   })
 }
 
 function task(info: ToolProps<typeof TaskTool>) {
   const input = info.part.state.input
-  const status = info.part.state.status
   const subagent =
     typeof input.subagent_type === "string" && input.subagent_type.trim().length > 0 ? input.subagent_type : "unknown"
   const agent = Locale.titlecase(subagent)
   const desc =
     typeof input.description === "string" && input.description.trim().length > 0 ? input.description : undefined
-  const icon = status === "error" ? "✗" : status === "running" ? "•" : "✓"
   const name = desc ?? `${agent} Task`
   inline({
-    icon,
+    icon: "⋮",
     title: name,
     description: desc ? `${agent} Agent` : undefined,
   })
@@ -186,8 +185,15 @@ function task(info: ToolProps<typeof TaskTool>) {
 
 function skill(info: ToolProps<typeof SkillTool>) {
   inline({
-    icon: "→",
+    icon: "✦",
     title: `Skill "${info.input.name}"`,
+  })
+}
+
+function question(info: ToolProps<typeof QuestionTool>) {
+  inline({
+    icon: "⁇",
+    title: `Asked ${info.input.questions.length} question${info.input.questions.length === 1 ? "" : "s"}`,
   })
 }
 
@@ -195,7 +201,7 @@ function bash(info: ToolProps<typeof BashTool>) {
   const output = info.part.state.status === "completed" ? info.part.state.output?.trim() : undefined
   block(
     {
-      icon: "$",
+      icon: ">",
       title: `${info.input.command}`,
     },
     output,
@@ -419,6 +425,7 @@ export const RunCommand = cmd({
           if (part.tool === "task") return task(props<typeof TaskTool>(part))
           if (part.tool === "todowrite") return todo(props<typeof TodoWriteTool>(part))
           if (part.tool === "skill") return skill(props<typeof SkillTool>(part))
+          if (part.tool === "question") return question(props<typeof QuestionTool>(part))
           return fallback(part)
         } catch {
           return fallback(part)
