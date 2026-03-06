@@ -180,7 +180,7 @@ export function Session() {
       return new CustomSpeedScroll(tui.scroll_speed)
     }
 
-    return new CustomSpeedScroll(3)
+    return new CustomSpeedScroll(1)
   })
 
   createEffect(async () => {
