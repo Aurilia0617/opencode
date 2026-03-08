@@ -888,7 +888,7 @@ export function Prompt(props: PromptProps) {
                 if (!autocomplete.visible) {
                   if (
                     (keybind.match("history_previous", e) && input.cursorOffset === 0) ||
-                    (keybind.match("history_next", e) && input.cursorOffset === input.plainText.length)
+                    (keybind.match("history_next", e) && input.cursorOffset === Bun.stringWidth(input.plainText))
                   ) {
                     const direction = keybind.match("history_previous", e) ? -1 : 1
                     const item = history.move(direction, input.plainText)
@@ -900,14 +900,14 @@ export function Prompt(props: PromptProps) {
                       restoreExtmarksFromParts(item.parts)
                       e.preventDefault()
                       if (direction === -1) input.cursorOffset = 0
-                      if (direction === 1) input.cursorOffset = input.plainText.length
+                      if (direction === 1) input.gotoBufferEnd()
                     }
                     return
                   }
 
                   if (keybind.match("history_previous", e) && input.visualCursor.visualRow === 0) input.cursorOffset = 0
                   if (keybind.match("history_next", e) && input.visualCursor.visualRow === input.height - 1)
-                    input.cursorOffset = input.plainText.length
+                    input.gotoBufferEnd()
                 }
               }}
               onSubmit={submit}
