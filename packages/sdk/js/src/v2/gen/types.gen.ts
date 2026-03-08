@@ -1866,6 +1866,24 @@ export type VcsInfo = {
   branch: string
 }
 
+export type VcsChange = {
+  path: string
+  status: "added" | "deleted" | "modified"
+  added: number
+  removed: number
+}
+
+export type VcsCommit = {
+  hash: string
+  title: string
+}
+
+export type VcsStatus = {
+  changes: Array<VcsChange>
+  commits: Array<VcsCommit>
+  upstream?: string
+}
+
 export type Command = {
   name: string
   description?: string
@@ -4868,6 +4886,25 @@ export type VcsGetResponses = {
 }
 
 export type VcsGetResponse = VcsGetResponses[keyof VcsGetResponses]
+
+export type VcsStatusData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/vcs/status"
+}
+
+export type VcsStatusResponses = {
+  /**
+   * VCS status
+   */
+  200: VcsStatus
+}
+
+export type VcsStatusResponse = VcsStatusResponses[keyof VcsStatusResponses]
 
 export type CommandListData = {
   body?: never

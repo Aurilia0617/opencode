@@ -344,6 +344,28 @@ export namespace Server {
           },
         )
         .get(
+          "/vcs/status",
+          describeRoute({
+            summary: "Get VCS status",
+            description:
+              "Retrieve git working tree changes and commits ahead of the configured upstream branch for the current project.",
+            operationId: "vcs.status",
+            responses: {
+              200: {
+                description: "VCS status",
+                content: {
+                  "application/json": {
+                    schema: resolver(Vcs.Status),
+                  },
+                },
+              },
+            },
+          }),
+          async (c) => {
+            return c.json(await Vcs.status())
+          },
+        )
+        .get(
           "/command",
           describeRoute({
             summary: "List commands",

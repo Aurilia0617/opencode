@@ -1,13 +1,9 @@
 import { useSync } from "@tui/context/sync"
-import { createMemo, createResource, For, Show, Switch, Match } from "solid-js"
+import { createMemo, createResource, For, Show, Switch, Match, onCleanup, onMount } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
-import { Locale } from "@/util/locale"
-import path from "path"
-import type { AssistantMessage } from "@opencode-ai/sdk/v2"
-import { Global } from "@/global"
+import type { AssistantMessage, VcsStatus } from "@opencode-ai/sdk/v2"
 import { Installation } from "@/installation"
-import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
 import { TodoItem } from "../../component/todo-item"
@@ -18,17 +14,31 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const sdk = useSDK()
   const { theme } = useTheme()
   const session = createMemo(() => sync.session.get(props.sessionID)!)
-  const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
+  const [git, { refetch }] = createResource<VcsStatus>(async () => {
+    const result = await sdk.client.vcs.status()
+    return result.data ?? { changes: [], commits: [] }
+  })
 
   const [expanded, setExpanded] = createStore({
     mcp: true,
-    diff: true,
+    change: true,
+    commit: true,
     todo: true,
     lsp: true,
     tool: {} as Record<string, boolean>,
   })
+
+  onMount(() => {
+    const timer = setInterval(() => {
+      refetch()
+    }, 5000)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const changes = createMemo(() => git()?.changes ?? [])
+  const commits = createMemo(() => git()?.commits ?? [])
 
   // Sort MCP servers alphabetically for consistent display order
   const mcpEntries = createMemo(() => Object.entries(sync.data.mcp).sort(([a], [b]) => a.localeCompare(b)))
@@ -261,37 +271,69 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 </Show>
               </box>
             </Show>
-            <Show when={diff().length > 0}>
+            <Show when={changes().length > 0}>
               <box>
                 <box
                   flexDirection="row"
                   gap={1}
-                  onMouseDown={() => diff().length > 2 && setExpanded("diff", !expanded.diff)}
+                  onMouseDown={() => changes().length > 2 && setExpanded("change", !expanded.change)}
                 >
                   <text fg={theme.text}>
-                    <Show when={diff().length > 2}>{expanded.diff ? "▼ " : "▶ "}</Show>
-                    <b>Modified Files</b>
+                    <Show when={changes().length > 2}>{expanded.change ? "▼ " : "▶ "}</Show>
+                    <b>Uncommitted Changes</b>
                   </text>
                 </box>
-                <Show when={diff().length <= 2 || expanded.diff}>
-                  <For each={diff() || []}>
-                    {(item) => {
-                      return (
-                        <box flexDirection="row" gap={1} justifyContent="space-between">
-                          <text fg={theme.textMuted} wrapMode="none">
-                            {item.file}
+                <Show when={changes().length <= 2 || expanded.change}>
+                  <For each={changes()}>
+                    {(item) => (
+                      <box flexDirection="row" gap={1} justifyContent="space-between">
+                        <text fg={theme.textMuted} wrapMode="none">
+                          {item.path}
+                        </text>
+                        <box flexDirection="row" gap={1} flexShrink={0}>
+                          <text
+                            fg={{
+                              added: theme.diffAdded,
+                              deleted: theme.diffRemoved,
+                              modified: theme.textMuted,
+                            }[item.status]}
+                          >
+                            {item.status === "added" ? "new" : item.status === "deleted" ? "del" : "mod"}
                           </text>
-                          <box flexDirection="row" gap={1} flexShrink={0}>
-                            <Show when={item.additions}>
-                              <text fg={theme.diffAdded}>+{item.additions}</text>
-                            </Show>
-                            <Show when={item.deletions}>
-                              <text fg={theme.diffRemoved}>-{item.deletions}</text>
-                            </Show>
-                          </box>
+                          <Show when={item.added}>
+                            <text fg={theme.diffAdded}>+{item.added}</text>
+                          </Show>
+                          <Show when={item.removed}>
+                            <text fg={theme.diffRemoved}>-{item.removed}</text>
+                          </Show>
                         </box>
-                      )
-                    }}
+                      </box>
+                    )}
+                  </For>
+                </Show>
+              </box>
+            </Show>
+            <Show when={commits().length > 0}>
+              <box>
+                <box
+                  flexDirection="row"
+                  gap={1}
+                  onMouseDown={() => commits().length > 2 && setExpanded("commit", !expanded.commit)}
+                >
+                  <text fg={theme.text}>
+                    <Show when={commits().length > 2}>{expanded.commit ? "▼ " : "▶ "}</Show>
+                    <b>Unpushed Commits</b>
+                  </text>
+                </box>
+                <Show when={commits().length <= 2 || expanded.commit}>
+                  <For each={commits()}>
+                    {(item) => (
+                      <box>
+                        <text fg={theme.textMuted} wrapMode="word">
+                          {item.hash.slice(0, 7)} {item.title}
+                        </text>
+                      </box>
+                    )}
                   </For>
                 </Show>
               </box>
