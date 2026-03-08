@@ -292,11 +292,13 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                         </text>
                         <box flexDirection="row" gap={1} flexShrink={0}>
                           <text
-                            fg={{
-                              added: theme.diffAdded,
-                              deleted: theme.diffRemoved,
-                              modified: theme.textMuted,
-                            }[item.status]}
+                            fg={
+                              {
+                                added: theme.diffAdded,
+                                deleted: theme.diffRemoved,
+                                modified: theme.textMuted,
+                              }[item.status]
+                            }
                           >
                             {item.status === "added" ? "new" : item.status === "deleted" ? "del" : "mod"}
                           </text>
@@ -328,7 +330,10 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 <Show when={commits().length <= 2 || expanded.commit}>
                   <For each={commits()}>
                     {(item) => (
-                      <box>
+                      <box flexDirection="row" gap={1}>
+                        <text fg={theme.textMuted} flexShrink={0}>
+                          •
+                        </text>
                         <text fg={theme.textMuted} wrapMode="word">
                           {item.hash.slice(0, 7)} {item.title}
                         </text>
