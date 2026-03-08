@@ -1953,10 +1953,7 @@ function WebSearch(props: ToolProps<any>) {
 }
 
 function Task(props: ToolProps<typeof TaskTool>) {
-  const { theme } = useTheme()
-  const keybind = useKeybind()
   const { navigate } = useRoute()
-  const local = useLocal()
   const sync = useSync()
 
   onMount(() => {
@@ -1965,6 +1962,22 @@ function Task(props: ToolProps<typeof TaskTool>) {
   })
 
   const messages = createMemo(() => sync.data.message[props.metadata.sessionId ?? ""] ?? [])
+  const agent = createMemo(() => {
+    const value = props.input.subagent_type
+    if (typeof value !== "string") return "@unknown"
+    const text = value.trim()
+    return text ? `@${text}` : "@unknown"
+  })
+  const desc = createMemo(() => {
+    const value = props.input.description
+    if (typeof value !== "string") return undefined
+    const text = value.trim()
+    return text || undefined
+  })
+  const title = createMemo(() => {
+    if (!desc()) return `Task ${agent()}`
+    return `Task ${agent()} · ${desc()}`
+  })
 
   const tools = createMemo(() => {
     return messages().flatMap((msg) =>
@@ -1986,8 +1999,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
   })
 
   const content = createMemo(() => {
-    if (!props.input.description) return ""
-    let content = [`Task ${props.input.description}`]
+    let content = [title()]
 
     if (isRunning() && tools().length > 0) {
       // content[0] += ` · ${tools().length} toolcalls`
@@ -2006,7 +2018,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
     <InlineTool
       icon="│"
       spinner={isRunning()}
-      complete={props.input.description}
+      complete={title()}
       pending="Delegating..."
       part={props.part}
       onClick={() => {
