@@ -39,6 +39,17 @@ export namespace MCP {
     .meta({ ref: "McpResource" })
   export type Resource = z.infer<typeof Resource>
 
+  export const ToolInfo = z
+    .object({
+      name: z.string(),
+      description: z.string().optional(),
+    })
+    .meta({ ref: "McpToolInfo" })
+  export type ToolInfo = z.infer<typeof ToolInfo>
+
+  export const ToolList = z.record(z.string(), z.array(ToolInfo)).meta({ ref: "McpToolList" })
+  export type ToolList = z.infer<typeof ToolList>
+
   export const ToolsChanged = BusEvent.define(
     "mcp.tools.changed",
     z.object({
@@ -289,6 +300,19 @@ export namespace MCP {
       commands[key] = { ...resource, client: clientName }
     }
     return commands
+  }
+
+  async function fetchToolsForClient(clientName: string, client: Client) {
+    const tools = await client.listTools().catch((e) => {
+      log.error("failed to get tools", { clientName, error: e.message })
+      return undefined
+    })
+
+    if (!tools) {
+      return
+    }
+
+    return tools.tools
   }
 
   export async function add(name: string, mcp: Config.Mcp) {
@@ -549,6 +573,38 @@ export namespace MCP {
     return state().then((state) => state.clients)
   }
 
+  export async function toolList() {
+    const s = await state()
+    const list = await Promise.all(
+      Object.entries(await clients()).map(async ([name, client]) => {
+        if (s.status[name]?.status !== "connected") {
+          return [name, []] as const
+        }
+
+        const tools = await fetchToolsForClient(name, client)
+        if (!tools) {
+          const status = {
+            status: "failed" as const,
+            error: "Failed to get tools",
+          }
+          s.status[name] = status
+          delete s.clients[name]
+          return [name, []] as const
+        }
+
+        return [
+          name,
+          tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+          })),
+        ] as const
+      }),
+    )
+
+    return Object.fromEntries(list.filter(([_, tools]) => tools.length > 0))
+  }
+
   export async function connect(name: string) {
     const cfg = await Config.get()
     const config = cfg.mcp ?? {}
@@ -614,16 +670,15 @@ export namespace MCP {
 
     const toolsResults = await Promise.all(
       connectedClients.map(async ([clientName, client]) => {
-        const toolsResult = await client.listTools().catch((e) => {
-          log.error("failed to get tools", { clientName, error: e.message })
+        const toolsResult = await fetchToolsForClient(clientName, client)
+        if (!toolsResult) {
           const failedStatus = {
             status: "failed" as const,
-            error: e instanceof Error ? e.message : String(e),
+            error: "Failed to get tools",
           }
           s.status[clientName] = failedStatus
           delete s.clients[clientName]
-          return undefined
-        })
+        }
         return { clientName, client, toolsResult }
       }),
     )
@@ -633,7 +688,7 @@ export namespace MCP {
       const mcpConfig = config[clientName]
       const entry = isMcpConfigured(mcpConfig) ? mcpConfig : undefined
       const timeout = entry?.timeout ?? defaultTimeout
-      for (const mcpTool of toolsResult.tools) {
+      for (const mcpTool of toolsResult) {
         const sanitizedClientName = clientName.replace(/[^a-zA-Z0-9_-]/g, "_")
         const sanitizedToolName = mcpTool.name.replace(/[^a-zA-Z0-9_-]/g, "_")
         result[sanitizedClientName + "_" + sanitizedToolName] = await convertMcpTool(mcpTool, client, timeout)

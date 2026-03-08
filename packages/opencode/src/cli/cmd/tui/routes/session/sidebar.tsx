@@ -1,5 +1,5 @@
 import { useSync } from "@tui/context/sync"
-import { createMemo, For, Show, Switch, Match } from "solid-js"
+import { createMemo, createResource, For, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
 import { Locale } from "@/util/locale"
@@ -11,9 +11,11 @@ import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
 import { TodoItem } from "../../component/todo-item"
+import { useSDK } from "../../context/sdk"
 
 export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const sync = useSync()
+  const sdk = useSDK()
   const { theme } = useTheme()
   const session = createMemo(() => sync.session.get(props.sessionID)!)
   const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
@@ -25,10 +27,31 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
     diff: true,
     todo: true,
     lsp: true,
+    tool: {} as Record<string, boolean>,
   })
 
   // Sort MCP servers alphabetically for consistent display order
   const mcpEntries = createMemo(() => Object.entries(sync.data.mcp).sort(([a], [b]) => a.localeCompare(b)))
+  const connectedMcp = createMemo(() =>
+    mcpEntries()
+      .filter(([_, item]) => item.status === "connected")
+      .map(([key]) => key)
+      .join("\0"),
+  )
+  const [mcpTools] = createResource(
+    () => connectedMcp(),
+    async (source) => {
+      if (!source) return {}
+      const result = await sdk.client.mcp.tools()
+      const data = result.data ?? {}
+      return Object.fromEntries(
+        source
+          .split("\0")
+          .filter(Boolean)
+          .map((name) => [name, data[name] ?? []]),
+      )
+    },
+  )
 
   // Count connected and error MCP servers for collapsed header display
   const connectedMcpCount = createMemo(() => mcpEntries().filter(([_, item]) => item.status === "connected").length)
@@ -113,10 +136,8 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                   gap={1}
                   onMouseDown={() => mcpEntries().length > 2 && setExpanded("mcp", !expanded.mcp)}
                 >
-                  <Show when={mcpEntries().length > 2}>
-                    <text fg={theme.text}>{expanded.mcp ? "▼" : "▶"}</text>
-                  </Show>
                   <text fg={theme.text}>
+                    <Show when={mcpEntries().length > 2}>{expanded.mcp ? "▼ " : "▶ "}</Show>
                     <b>MCP</b>
                     <Show when={!expanded.mcp}>
                       <span style={{ fg: theme.textMuted }}>
@@ -129,40 +150,55 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 </box>
                 <Show when={mcpEntries().length <= 2 || expanded.mcp}>
                   <For each={mcpEntries()}>
-                    {([key, item]) => (
-                      <box flexDirection="row" gap={1}>
-                        <text
-                          flexShrink={0}
-                          style={{
-                            fg: (
-                              {
-                                connected: theme.success,
-                                failed: theme.error,
-                                disabled: theme.textMuted,
-                                needs_auth: theme.warning,
-                                needs_client_registration: theme.error,
-                              } as Record<string, typeof theme.success>
-                            )[item.status],
-                          }}
-                        >
-                          •
-                        </text>
-                        <text fg={theme.text} wrapMode="word">
-                          {key}{" "}
-                          <span style={{ fg: theme.textMuted }}>
-                            <Switch fallback={item.status}>
-                              <Match when={item.status === "connected"}>Connected</Match>
-                              <Match when={item.status === "failed" && item}>{(val) => <i>{val().error}</i>}</Match>
-                              <Match when={item.status === "disabled"}>Disabled</Match>
-                              <Match when={(item.status as string) === "needs_auth"}>Needs auth</Match>
-                              <Match when={(item.status as string) === "needs_client_registration"}>
-                                Needs client ID
-                              </Match>
-                            </Switch>
-                          </span>
-                        </text>
-                      </box>
-                    )}
+                    {([key, item]) => {
+                      const count = createMemo(() => (mcpTools()?.[key] ?? []).length)
+                      const open = createMemo(() => item.status === "connected" && count() > 0)
+
+                      return (
+                        <box>
+                          <box
+                            flexDirection="row"
+                            gap={1}
+                            onMouseDown={() => {
+                              if (!open()) return
+                              setExpanded("tool", key, !(expanded.tool[key] ?? false))
+                            }}
+                          >
+                            <text fg={theme.text} wrapMode="word">
+                              <Show when={open()} fallback={"  "}>
+                                {expanded.tool[key] ? "▼ " : "▶ "}
+                              </Show>
+                              {key}{" "}
+                              <span style={{ fg: theme.textMuted }}>
+                                <Switch fallback={item.status}>
+                                  <Match when={item.status === "connected" && count() > 0}>
+                                    {count()} tool{count() !== 1 ? "s" : ""}
+                                  </Match>
+                                  <Match when={item.status === "connected"}>ready</Match>
+                                  <Match when={item.status === "failed"}>error</Match>
+                                  <Match when={item.status === "disabled"}>off</Match>
+                                  <Match when={(item.status as string) === "needs_auth"}>auth</Match>
+                                  <Match when={(item.status as string) === "needs_client_registration"}>
+                                    client ID
+                                  </Match>
+                                </Switch>
+                              </span>
+                            </text>
+                          </box>
+                          <Show when={open() && expanded.tool[key]}>
+                            <box paddingLeft={2}>
+                              <For each={mcpTools()?.[key] ?? []}>
+                                {(tool) => (
+                                  <text fg={theme.textMuted} wrapMode="word">
+                                    {tool.name}
+                                  </text>
+                                )}
+                              </For>
+                            </box>
+                          </Show>
+                        </box>
+                      )
+                    }}
                   </For>
                 </Show>
               </box>
@@ -173,10 +209,8 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 gap={1}
                 onMouseDown={() => sync.data.lsp.length > 2 && setExpanded("lsp", !expanded.lsp)}
               >
-                <Show when={sync.data.lsp.length > 2}>
-                  <text fg={theme.text}>{expanded.lsp ? "▼" : "▶"}</text>
-                </Show>
                 <text fg={theme.text}>
+                  <Show when={sync.data.lsp.length > 2}>{expanded.lsp ? "▼ " : "▶ "}</Show>
                   <b>LSP</b>
                 </text>
               </box>
@@ -217,10 +251,8 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                   gap={1}
                   onMouseDown={() => todo().length > 2 && setExpanded("todo", !expanded.todo)}
                 >
-                  <Show when={todo().length > 2}>
-                    <text fg={theme.text}>{expanded.todo ? "▼" : "▶"}</text>
-                  </Show>
                   <text fg={theme.text}>
+                    <Show when={todo().length > 2}>{expanded.todo ? "▼ " : "▶ "}</Show>
                     <b>Todo</b>
                   </text>
                 </box>
@@ -236,10 +268,8 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                   gap={1}
                   onMouseDown={() => diff().length > 2 && setExpanded("diff", !expanded.diff)}
                 >
-                  <Show when={diff().length > 2}>
-                    <text fg={theme.text}>{expanded.diff ? "▼" : "▶"}</text>
-                  </Show>
                   <text fg={theme.text}>
+                    <Show when={diff().length > 2}>{expanded.diff ? "▼ " : "▶ "}</Show>
                     <b>Modified Files</b>
                   </text>
                 </box>

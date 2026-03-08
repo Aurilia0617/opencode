@@ -1845,6 +1845,15 @@ export type McpStatus =
   | McpStatusNeedsAuth
   | McpStatusNeedsClientRegistration
 
+export type McpToolInfo = {
+  name: string
+  description?: string
+}
+
+export type McpToolList = {
+  [key: string]: Array<McpToolInfo>
+}
+
 export type Path = {
   home: string
   state: string
@@ -4290,6 +4299,25 @@ export type McpAddResponses = {
 }
 
 export type McpAddResponse = McpAddResponses[keyof McpAddResponses]
+
+export type McpToolsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/mcp/tools"
+}
+
+export type McpToolsResponses = {
+  /**
+   * MCP tools
+   */
+  200: McpToolList
+}
+
+export type McpToolsResponse = McpToolsResponses[keyof McpToolsResponses]
 
 export type McpAuthRemoveData = {
   body?: never

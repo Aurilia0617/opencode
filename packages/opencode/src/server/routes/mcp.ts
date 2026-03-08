@@ -29,6 +29,27 @@ export const McpRoutes = lazy(() =>
         return c.json(await MCP.status())
       },
     )
+    .get(
+      "/tools",
+      describeRoute({
+        summary: "Get MCP tools",
+        description: "Get tools grouped by connected Model Context Protocol (MCP) server.",
+        operationId: "mcp.tools",
+        responses: {
+          200: {
+            description: "MCP tools",
+            content: {
+              "application/json": {
+                schema: resolver(MCP.ToolList),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        return c.json(await MCP.toolList())
+      },
+    )
     .post(
       "/",
       describeRoute({
