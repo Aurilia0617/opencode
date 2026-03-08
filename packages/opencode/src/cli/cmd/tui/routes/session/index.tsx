@@ -1571,6 +1571,7 @@ type ToolProps<T extends Tool.Info> = {
 function GenericTool(props: ToolProps<any>) {
   const { theme } = useTheme()
   const ctx = use()
+  const arg = createMemo(() => input(props.input))
   const output = createMemo(() => props.output?.trim() ?? "")
   const [expanded, setExpanded] = createSignal(false)
   const lines = createMemo(() => output().split("\n"))
@@ -1585,13 +1586,22 @@ function GenericTool(props: ToolProps<any>) {
     <Show
       when={props.output && ctx.showGenericToolOutput()}
       fallback={
-        <InlineTool icon="⚙" pending="Writing command..." complete={true} part={props.part}>
-          {props.tool} {input(props.input)}
+        <InlineTool icon="⚙" iconColor={theme.info} pending="Writing command..." complete={true} part={props.part}>
+          <span style={{ fg: theme.accent }}>{props.tool}</span>
+          <Show when={arg()}>{" " + arg()}</Show>
         </InlineTool>
       }
     >
       <BlockTool
-        title={`# ${props.tool} ${input(props.input)}`}
+        title={
+          <>
+            <span style={{ fg: theme.textMuted }}># </span>
+            <span style={{ fg: theme.accent }}>{props.tool}</span>
+            <Show when={arg()}>
+              <span style={{ fg: theme.textMuted }}>{" " + arg()}</span>
+            </Show>
+          </>
+        }
         part={props.part}
         onClick={overflow() ? () => setExpanded((prev) => !prev) : undefined}
       >
@@ -1709,7 +1719,7 @@ function InlineTool(props: {
 }
 
 function BlockTool(props: {
-  title: string
+  title: string | JSX.Element
   children: JSX.Element
   onClick?: () => void
   part?: ToolPart
@@ -1745,7 +1755,9 @@ function BlockTool(props: {
           </text>
         }
       >
-        <Spinner color={theme.textMuted}>{props.title.replace(/^# /, "")}</Spinner>
+        <Spinner color={theme.textMuted}>
+          {typeof props.title === "string" ? props.title.replace(/^# /, "") : props.title}
+        </Spinner>
       </Show>
       {props.children}
       <Show when={error()}>
