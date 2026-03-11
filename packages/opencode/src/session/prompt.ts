@@ -759,12 +759,15 @@ export namespace SessionPrompt {
           await Session.updatePart({
             ...match,
             state: {
-              title: val.title,
-              metadata: val.metadata,
+              title: val.title ?? match.state.title,
+              metadata: {
+                ...(match.state.metadata ?? {}),
+                ...(val.metadata ?? {}),
+              },
               status: "running",
               input: args,
               time: {
-                start: Date.now(),
+                start: match.state.time.start,
               },
             },
           })
@@ -827,9 +830,11 @@ export namespace SessionPrompt {
       })
     }
 
+    const src: Record<string, string> = {}
     for (const [key, item] of Object.entries(await MCP.tools())) {
       const execute = item.execute
       if (!execute) continue
+      src[key] = "mcp"
 
       const transformed = ProviderTransform.schema(input.model, asSchema(item.inputSchema).jsonSchema)
       item.inputSchema = jsonSchema(transformed)
@@ -919,6 +924,7 @@ export namespace SessionPrompt {
       }
       tools[key] = item
     }
+    input.processor.source(src)
 
     return tools
   }

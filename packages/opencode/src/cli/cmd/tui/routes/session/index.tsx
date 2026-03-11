@@ -6,6 +6,7 @@ import {
   createSignal,
   For,
   Match,
+  onCleanup,
   on,
   onMount,
   Show,
@@ -1627,6 +1628,56 @@ function ToolTitle(props: { fallback: string; when: any; icon: string; children:
   )
 }
 
+function McpBadge(props: { part?: ToolPart }) {
+  const { theme } = useTheme()
+  const [tick, setTick] = createSignal(0)
+
+  const mcp = createMemo(() => {
+    const part = props.part
+    if (!part) return false
+    if (part.state.status === "pending") return false
+    return part.state.metadata?.source === "mcp"
+  })
+
+  createEffect(() => {
+    if (!mcp() || props.part?.state.status !== "running") return
+    const timer = setInterval(() => setTick((x) => x + 1), 100)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const dur = createMemo(() => {
+    tick()
+    const part = props.part
+    if (!part || !mcp()) return ""
+    if (part.state.status === "running") {
+      return Locale.duration(Date.now() - part.state.time.start)
+    }
+    if (part.state.status === "completed") {
+      return Locale.duration(part.state.time.end - part.state.time.start)
+    }
+    return ""
+  })
+
+  return (
+    <Show when={mcp()}>
+      <Switch>
+        <Match when={props.part?.state.status === "running"}>
+          <>
+            <span style={{ fg: theme.warning }}> running</span>
+            <span style={{ fg: theme.textMuted }}> · {dur()}</span>
+          </>
+        </Match>
+        <Match when={props.part?.state.status === "completed"}>
+          <>
+            <span style={{ fg: theme.success }}> ✓</span>
+            <span style={{ fg: theme.textMuted }}> · {dur()}</span>
+          </>
+        </Match>
+      </Switch>
+    </Show>
+  )
+}
+
 function InlineTool(props: {
   icon: string
   iconColor?: RGBA
@@ -1701,12 +1752,18 @@ function InlineTool(props: {
     >
       <Switch>
         <Match when={props.spinner}>
-          <Spinner color={fg()} children={props.children} />
+          <Spinner color={fg()}>
+            <>
+              {props.children}
+              <McpBadge part={props.part} />
+            </>
+          </Spinner>
         </Match>
         <Match when={true}>
           <text paddingLeft={3} fg={fg()} attributes={denied() ? TextAttributes.STRIKETHROUGH : undefined}>
             <Show fallback={<>~ {props.pending}</>} when={props.complete}>
               <span style={{ fg: props.iconColor }}>{props.icon}</span> {props.children}
+              <McpBadge part={props.part} />
             </Show>
           </text>
         </Match>
@@ -1752,11 +1809,15 @@ function BlockTool(props: {
         fallback={
           <text paddingLeft={3} fg={theme.textMuted}>
             {props.title}
+            <McpBadge part={props.part} />
           </text>
         }
       >
         <Spinner color={theme.textMuted}>
-          {typeof props.title === "string" ? props.title.replace(/^# /, "") : props.title}
+          <>
+            {typeof props.title === "string" ? props.title.replace(/^# /, "") : props.title}
+            <McpBadge part={props.part} />
+          </>
         </Spinner>
       </Show>
       {props.children}

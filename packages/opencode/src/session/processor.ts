@@ -30,14 +30,28 @@ export namespace SessionProcessor {
     abort: AbortSignal
   }) {
     const toolcalls: Record<string, MessageV2.ToolPart> = {}
+    const src = new Map<string, string>()
     let snapshot: string | undefined
     let blocked = false
     let attempt = 0
     let needsCompaction = false
 
+    const meta = (tool: string) => {
+      const val = src.get(tool)
+      if (!val) return
+      return {
+        source: val,
+      }
+    }
+
     const result = {
       get message() {
         return input.assistantMessage
+      },
+      source(map: Record<string, string>) {
+        for (const [key, val] of Object.entries(map)) {
+          src.set(key, val)
+        }
       },
       partFromToolCall(toolCallID: string) {
         return toolcalls[toolCallID]
@@ -137,14 +151,15 @@ export namespace SessionProcessor {
                     const part = await Session.updatePart({
                       ...match,
                       tool: value.toolName,
+                      metadata: value.providerMetadata,
                       state: {
                         status: "running",
                         input: value.input,
+                        metadata: meta(value.toolName),
                         time: {
                           start: Date.now(),
                         },
                       },
-                      metadata: value.providerMetadata,
                     })
                     toolcalls[value.toolCallId] = part as MessageV2.ToolPart
 
@@ -186,7 +201,10 @@ export namespace SessionProcessor {
                         status: "completed",
                         input: value.input ?? match.state.input,
                         output: value.output.output,
-                        metadata: value.output.metadata,
+                        metadata: {
+                          ...(match.state.metadata ?? {}),
+                          ...(value.output.metadata ?? {}),
+                        },
                         title: value.output.title,
                         time: {
                           start: match.state.time.start,
@@ -210,6 +228,7 @@ export namespace SessionProcessor {
                         status: "error",
                         input: value.input ?? match.state.input,
                         error: (value.error as any).toString(),
+                        metadata: match.state.metadata,
                         time: {
                           start: match.state.time.start,
                           end: Date.now(),
